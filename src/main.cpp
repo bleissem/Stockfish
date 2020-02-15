@@ -1,7 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
-  Copyright (C) 2008-2014 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -20,7 +21,7 @@
 #include <iostream>
 
 #include "bitboard.h"
-#include "evaluate.h"
+#include "endgame.h"
 #include "position.h"
 #include "search.h"
 #include "thread.h"
@@ -28,22 +29,25 @@
 #include "uci.h"
 #include "syzygy/tbprobe.h"
 
+namespace PSQT {
+  void init();
+}
+
 int main(int argc, char* argv[]) {
 
   std::cout << engine_info() << std::endl;
 
   UCI::init(Options);
+  PSQT::init();
   Bitboards::init();
   Position::init();
-  Bitbases::init_kpk();
-  Search::init();
-  Eval::init();
-  Pawns::init();
-  Threads.init();
-  Tablebases::init(Options["SyzygyPath"]);
-  TT.resize(Options["Hash"]);
+  Bitbases::init();
+  Endgames::init();
+  Threads.set(Options["Threads"]);
+  Search::clear(); // After threads are up
 
   UCI::loop(argc, argv);
 
-  Threads.exit();
+  Threads.set(0);
+  return 0;
 }

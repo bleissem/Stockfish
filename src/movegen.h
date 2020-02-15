@@ -1,7 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
-  Copyright (C) 2008-2014 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -20,7 +21,11 @@
 #ifndef MOVEGEN_H_INCLUDED
 #define MOVEGEN_H_INCLUDED
 
+#include <algorithm>
+
 #include "types.h"
+
+class Position;
 
 enum GenType {
   CAPTURES,
@@ -31,7 +36,21 @@ enum GenType {
   LEGAL
 };
 
-class Position;
+struct ExtMove {
+  Move move;
+  int value;
+
+  operator Move() const { return move; }
+  void operator=(Move m) { move = m; }
+
+  // Inhibit unwanted implicit conversions to Move
+  // with an ambiguity that yields to a compile error.
+  operator float() const = delete;
+};
+
+inline bool operator<(const ExtMove& f, const ExtMove& s) {
+  return f.value < s.value;
+}
 
 template<GenType>
 ExtMove* generate(const Position& pos, ExtMove* moveList);
@@ -41,18 +60,16 @@ ExtMove* generate(const Position& pos, ExtMove* moveList);
 template<GenType T>
 struct MoveList {
 
-  explicit MoveList(const Position& pos) : cur(moveList), last(generate<T>(pos, moveList)) { last->move = MOVE_NONE; }
-  void operator++() { ++cur; }
-  Move operator*() const { return cur->move; }
+  explicit MoveList(const Position& pos) : last(generate<T>(pos, moveList)) {}
+  const ExtMove* begin() const { return moveList; }
+  const ExtMove* end() const { return last; }
   size_t size() const { return last - moveList; }
-  bool contains(Move m) const {
-    for (const ExtMove* it(moveList); it != last; ++it) if (it->move == m) return true;
-    return false;
+  bool contains(Move move) const {
+    return std::find(begin(), end(), move) != end();
   }
 
 private:
-  ExtMove moveList[MAX_MOVES];
-  ExtMove *cur, *last;
+  ExtMove moveList[MAX_MOVES], *last;
 };
 
 #endif // #ifndef MOVEGEN_H_INCLUDED

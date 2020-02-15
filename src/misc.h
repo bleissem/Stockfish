@@ -1,7 +1,8 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
-  Copyright (C) 2008-2014 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -21,6 +22,7 @@
 #define MISC_H_INCLUDED
 
 #include <cassert>
+#include <chrono>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -28,29 +30,31 @@
 #include "types.h"
 
 const std::string engine_info(bool to_uci = false);
-void timed_wait(WaitCondition&, Lock&, int);
-void prefetch(char* addr);
-void start_logger(bool b);
+const std::string compiler_info();
+void prefetch(void* addr);
+void start_logger(const std::string& fname);
+void* aligned_ttmem_alloc(size_t size, void*& mem);
 
 void dbg_hit_on(bool b);
-void dbg_hit_on_c(bool c, bool b);
+void dbg_hit_on(bool c, bool b);
 void dbg_mean_of(int v);
 void dbg_print();
 
+typedef std::chrono::milliseconds::rep TimePoint; // A value in milliseconds
 
-namespace Time {
-  typedef int64_t point;
-  inline point now() { return system_time_to_msec(); }
+static_assert(sizeof(TimePoint) == sizeof(int64_t), "TimePoint should be 64 bits");
+
+inline TimePoint now() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>
+        (std::chrono::steady_clock::now().time_since_epoch()).count();
 }
-
 
 template<class Entry, int Size>
 struct HashTable {
-  HashTable() : table(Size, Entry()) {}
   Entry* operator[](Key key) { return &table[(uint32_t)key & (Size - 1)]; }
 
 private:
-  std::vector<Entry> table;
+  std::vector<Entry> table = std::vector<Entry>(Size); // Allocate on the heap
 };
 
 
@@ -96,5 +100,16 @@ public:
   template<typename T> T sparse_rand()
   { return T(rand64() & rand64() & rand64()); }
 };
+
+
+/// Under Windows it is not possible for a process to run on more than one
+/// logical processor group. This usually means to be limited to use max 64
+/// cores. To overcome this, some special platform specific API should be
+/// called to set group affinity for each thread. Original code from Texel by
+/// Peter Österlund.
+
+namespace WinProcGroup {
+  void bindThisThread(size_t idx);
+}
 
 #endif // #ifndef MISC_H_INCLUDED
